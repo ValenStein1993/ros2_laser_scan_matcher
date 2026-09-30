@@ -240,6 +240,7 @@ LaserScanMatcher::LaserScanMatcher() : Node("laser_scan_matcher"), initialized_(
   output_.cov_x_m = 0;
   output_.dx_dy1_m = 0;
   output_.dx_dy2_m = 0;
+  last_pose_covariance_.fill(0.0);
 
 
   // Subscribers
@@ -410,6 +411,30 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
 
   if (output_.valid)
   {
+    if (output_.cov_x_m) {
+      last_pose_covariance_.fill(0.0);
+
+      const double c_xx = gsl_matrix_get(output_.cov_x_m, 0, 0);
+      const double c_xy = gsl_matrix_get(output_.cov_x_m, 0, 1);
+      const double c_xth = gsl_matrix_get(output_.cov_x_m, 0, 2);
+      const double c_yy = gsl_matrix_get(output_.cov_x_m, 1, 1);
+      const double c_yth = gsl_matrix_get(output_.cov_x_m, 1, 2);
+      const double c_thth = gsl_matrix_get(output_.cov_x_m, 2, 2);
+
+      // Pose covariance layout in ROS is row-major 6x6 with x,y,z,roll,pitch,yaw.
+      // We only have x/y/theta from CSM, so map the relevant terms into the pose
+      // covariance and leave the remaining entries at zero.
+      last_pose_covariance_[0] = c_xx;
+      last_pose_covariance_[1] = c_xy;
+      last_pose_covariance_[5] = c_xth;
+      last_pose_covariance_[6] = c_xy;
+      last_pose_covariance_[7] = c_yy;
+      last_pose_covariance_[11] = c_yth;
+      last_pose_covariance_[30] = c_xth;
+      last_pose_covariance_[31] = c_yth;
+      last_pose_covariance_[35] = c_thth;
+    }
+
     // the correction of the laser's position, in the laser frame
     tf2::Transform corr_ch_l;
     createTfFromXYTheta(output_.x[0], output_.x[1], output_.x[2], corr_ch_l);
@@ -446,6 +471,8 @@ bool LaserScanMatcher::processScan(LDP& curr_ldp_scan, const rclcpp::Time& time)
     odom_msg.pose.pose.orientation.y = f2b_.getRotation().y();
     odom_msg.pose.pose.orientation.z = f2b_.getRotation().z();
     odom_msg.pose.pose.orientation.w = f2b_.getRotation().w();
+
+    odom_msg.pose.covariance = last_pose_covariance_;
 
     // Get pose difference in base frame and calculate velocities
     auto pose_difference = prev_f2b_.inverse() * f2b_;

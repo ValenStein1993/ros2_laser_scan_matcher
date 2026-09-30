@@ -44,11 +44,12 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/message_filter.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <tf2/utils.h>
 
 #include "rclcpp/rclcpp.hpp"
 
+#include <array>
 #include <csm/csm.h>  // csm defines min and max, but Eigen complains
 #include <boost/thread.hpp>
 
@@ -94,6 +95,7 @@ private:
   tf2::Transform prev_f2b_; // previous fixed-to-base tf (for odometry calculation)
   tf2::Transform f2b_kf_;  // pose of the last keyframe scan in fixed frame
 
+  std::array<double, 36> last_pose_covariance_{};
 
   tf2::Transform odom_to_base_tf;
 
